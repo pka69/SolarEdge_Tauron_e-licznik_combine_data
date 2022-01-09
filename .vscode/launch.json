@@ -1,0 +1,19 @@
+{
+    // Użyj funkcji IntelliSense, aby uzyskać informacje o możliwych atrybutach.
+    // Najedź kursorem, aby wyświetlić opisy istniejących atrybutów.
+    // Aby uzyskać więcej informacji, odwiedź stronę: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": 
+            ["-p=6"]
+            // ["-r -b 0.3 -kw 0.6 -p 4 -g monthly -gp 2021/09-2021/12"]
+            // "args": ["-d"]
+        }
+    ]
+}
