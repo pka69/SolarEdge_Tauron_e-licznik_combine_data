@@ -28,11 +28,11 @@ parser.add_argument('-l', '--limits', default='', help='range of periods to repo
 try:
     args = parser.parse_args()
 except SystemExit as E:
-    print('----------------------\nwystąpił bład w parametrach - {}\n----------------------'.format(E))
+    # print('----------------------\nwystąpił bład w parametrach - {}\n----------------------'.format(E))
     parser.print_help(sys.stderr)
     sys.exit()
 except TypeError as E:
-    print('----------------------\nwystąpił bład w parametrach - {}\n----------------------'.format(E))
+    # print('----------------------\nwystąpił bład w parametrach - {}\n----------------------'.format(E))
     parser.print_help(sys.stderr)
     sys.exit()
 #
@@ -55,17 +55,15 @@ if args.prospect:
 print('- {} reports'.format(args.group))
 if args.limits:
     periods = args.limits.split('-')
-    if len(periods)!=2 or any(periods, lambda x: x.find('/')==-1):
+    if len(periods)!=2 or any([x.find('/')==-1 for x in periods]):
         print('błędnie podany zakres okresów')
         sys.exit()
-    print('- periods limited to range {} - {} {}'.format([period for period in periods], PERIODS_CONVERTER[args.group]))
+    print('- periods limited to range {} - {} {}'.format(periods[0], periods[1], PERIODS_CONVERTER[args.group]))
 else:
     print('- periods are not limited')
 #
 # run main application
 #
-
-
 energy_object, pdf = create_energy_reports(
     refresh = args.refresh,
     group = args.group,
@@ -73,6 +71,7 @@ energy_object, pdf = create_energy_reports(
     kW_cost = args.kW_cost,
     limit_periods = periods if args.limits else None
 )
+energy_object.daily_flash_page()
 
-if args.prospect:
-    create_monthly_projection(energy_object, args.prospect)
+# if args.prospect:
+#     create_monthly_projection(energy_object, args.prospect)

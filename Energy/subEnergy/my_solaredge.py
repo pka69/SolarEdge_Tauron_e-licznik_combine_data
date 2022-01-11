@@ -42,8 +42,8 @@ class MySolarEdge(Energy):
         try:
             self.load_from_file()
             start_date = self.drop_last_day()
-            if date.today() - start_date <= timedelta(days=1) and self.debug:
-                print(f'{self.source_name}\nTotal produced energy: {self.get_energy.production_.sum():,.2f} wh')
+            if date.today() - start_date <= timedelta(days=1):
+                if self.debug: print(f'{self.source_name}\nTotal produced energy: {self.get_energy.production_.sum():,.2f} wh')
                 return
             if not self.refresh: return
         except FileNotFoundError as E:
@@ -51,12 +51,12 @@ class MySolarEdge(Energy):
         try:
             days = (end_date - start_date).days + 1
             for i in range(0, days, self.day_batch):
-                start_date = start_date + timedelta(days=i)
-                end_date = min(end_date, start_date + timedelta(days=self.day_batch - 1))
+                imp_start_date = start_date + timedelta(days=i)
+                imp_end_date = min(end_date, imp_start_date + timedelta(days=self.day_batch - 1))
                 day_energy = s.get_energy(
                     self.se_id, 
-                    start_date.isoformat(), 
-                    end_date.isoformat(), 
+                    imp_start_date.isoformat(), 
+                    imp_end_date.isoformat(), 
                     time_unit=self.time_unit 
                 )
                 temp_df =  temp_df.append( 

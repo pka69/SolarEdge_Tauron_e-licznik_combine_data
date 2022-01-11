@@ -191,49 +191,9 @@ def speedometer(
                 #       'ec': 'None', 'pad': 0},
                 zorder=10)
         if local_DAL['range_labels']:
-            # annotation_angles = [(annotation_angles[i]+annotation_angles[i+1])/2 for i in range(len(annotation_angles)-1) ]
-            # for angle, label in zip(annotation_angles, local_DAL['range_labels']):
-            #     # print(
-            #     #     "angle:", angle,
-            #     #     "label:", label
-            #     # )
-            #     if local_DAL['rotate_labels']:
-            #         radius_factor = 0.85
-            #         adj = -90
-            #         # if angle < 90:
-            #         #     adj = 90
-            #         # else:
-            #         #     adj = -90
-            #     else:
-            #         radius_factor = 0.85
-            #         if (angle < 0) | (angle > 180):
-            #             adj = 180
-            #         else:
-            #             adj = 0
-                # text = ax.text(local_DAL['center'][0] + radius_factor * local_DAL['radius'] * np.cos(np.radians(angle)),  
-                #     local_DAL['center'][1] + radius_factor * local_DAL['radius'] * np.sin(np.radians(angle)), 
-                #     label, horizontalalignment='center', verticalalignment='center', fontsize=local_DAL['range_label_fontsize'],
-                #     fontweight='light', color=local_DAL['label_fontcolor'], rotation=rotate(angle) + adj,
-                #     # bbox={'facecolor': local_DAL['arc_edgecolor'], 'ec': 'None', 'pad': 0},
-                #     zorder=10)
-                # text.set_path_effects([path_effects.withStroke(linewidth=0.5, foreground='w')])
-            # print(
-            #     'angle1: ', annotation_angles[:-1],
-            #     'angle2: ', annotation_angles[1:],
-            #     'label:', local_DAL['range_labels']
-            # )
             for angle1, angle2, label in zip(annotation_angles[:-1], annotation_angles[1:], local_DAL['range_labels']):
                 adj = 0
                 radius_factor = 0.85
-                # if local_DAL['rotate_labels']:
-                #     radius_factor = 0.85
-                #     adj = -90
-                # else:
-                #     radius_factor = 0.85
-                #     if (angle1 < 0) | (angle1 > 180):
-                #         adj = 180
-                #     else:
-                #         adj = 0
                 steps = len(label) + 1
                 angle_step = (angle2-angle1) / steps
                 for idx in range(len(label)):
@@ -249,9 +209,7 @@ def speedometer(
                         fontweight='light', 
                         color=local_DAL['label_fontcolor'], 
                         rotation=rotate(angle) + adj,
-                        # bbox={'facecolor': local_DAL['arc_edgecolor'], 'ec': 'None', 'pad': 0},
                         zorder=10)
-                    # text.set_path_effects([path_effects.withStroke(linewidth=0.5, foreground='w')])
                     
     arrow_angle = set_arrow_angle() 
     
@@ -267,7 +225,7 @@ def speedometer(
         zorder=9, 
         # alpha=0.5,
         lw=1)
-# arrow center
+    # arrow center
     ax.add_patch(Circle(
         local_DAL['center'], 
         radius=local_DAL['radius']/30, 
@@ -310,6 +268,25 @@ def speedometer(
         rec = ax.add_patch(rec)
         rec.set_clip_on(False)
 
+def set_of_speedo(
+    no_of_speedo, weight, hight, columns, min_value, max_value, speedo_value, 
+    unit='m/s',
+    **kwargs):
+    fig, ax = plt.subplots(1,no_of_speedo,figsize = (weight, hight), dpi=200)
+    for idx, col in enumerate(columns):
+        speedometer(
+            ax[idx],
+            min_value[idx], 
+            max_value[idx],
+            speedo_value[idx],
+            title=col.replace("_", " "),
+            **kwargs
+        )
+    return plt
+
+
+
+
 if __name__ == "__main__":
     test_data = [
             [40, 59.9, 81, 90.7, 103.7, 120],
@@ -337,8 +314,6 @@ if __name__ == "__main__":
                 title="Waga",
                 unit='kg',
                 annotation_fontsize=10,
-                start_angle=-0,
-                end_angle=210,
                 annotation_facecolor='lightgray', 
                 annotation_pad=0.5,
                 annotation_offset=0.6,

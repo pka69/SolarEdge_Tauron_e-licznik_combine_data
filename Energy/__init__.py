@@ -3,6 +3,7 @@ import os
 
 STORAGE_DIR = 'imported/'
 OUTPUT_DIR = 'output/'
+SUPPORT_DIR = 'other/'
 
 global debug
 debug = True

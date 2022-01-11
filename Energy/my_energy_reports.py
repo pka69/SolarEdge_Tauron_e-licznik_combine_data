@@ -27,28 +27,36 @@ def create_energy_reports(
     kW_cost=0.6,
     limit_periods = None,
 ):
-    # create TAuron energy object. Use API Tauron
+    # create Tauron energy object. Use API Tauron
     tauron_df = MyAPITauron(
         TAURON_USER_NAME, TAURON_PASS, TAURON_METER_ID, 
         storage_dir =STORAGE_DIR, 
         output_dir=OUTPUT_DIR,
-        refresh=refresh
+        refresh=refresh,
+        kW_cost = 0
     )
     if limit_periods: tauron_df.limit_periods(PERIODS_CONVERTER[group], *limit_periods)
     if get_debug(): print(tauron_df)
     # create SorarEdge energy object. USE API SolarEdge
     solar_df = MySolarEdge(
         APIKEY, APIID, 
-        export_back = 0.8, 
+        export_back = export_back, 
         storage_dir =STORAGE_DIR, 
         output_dir=OUTPUT_DIR,
-        refresh=refresh
+        refresh=refresh,
+        kW_cost = 0
     )
     if limit_periods: solar_df.limit_periods(PERIODS_CONVERTER[group], *limit_periods)
     if get_debug(): print(solar_df)
     #
     # join objects to one object
-    my_energy_df = CommonEnergy([solar_df,tauron_df], storage_dir =STORAGE_DIR, output_dir=OUTPUT_DIR)
+    my_energy_df = CommonEnergy(
+        [solar_df,tauron_df], 
+        storage_dir =STORAGE_DIR, 
+        output_dir=OUTPUT_DIR,
+        export_back = export_back, 
+        kW_cost = kW_cost
+    )
     if get_debug(): print(my_energy_df)
 
     pdf = PDF(title="PV installation analyzer. Location: {}".format(my_energy_df.location))

@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 
 from ..subGraphs.my_plots import barplot, lineplot, histplot
+from ..subGraphs.my_graph_speedo import speedometer, set_of_speedo
 from ..subTools.my_pdf import PDF
 
 from Energy import get_debug
@@ -97,6 +98,8 @@ class Energy(ABC):
             owner = 'Piotr Kalista', 
             location = 'ul. Bluszczowa 4c, Kraków',
             refresh = True,
+            kW_cost = 0.65,
+            currency = "PLN"
                  ):
         self._energy_df = pd.DataFrame()
         self.source_name = source_name
@@ -114,11 +117,12 @@ class Energy(ABC):
         self.location = location
         self.debug = get_debug()
         self.refresh = refresh
+        self.kW_cost = kW_cost
+        self.currency = currency
 
     def limit_periods(self, period, limit_min, limit_max):
         self._energy_df = self._energy_df[(self._energy_df[period]>=limit_min) & (self._energy_df[period]<=limit_max)]
-        self.start_date = self._energy_df['date'].min()
-        self.stop_date = self._energy_df['date'].max()
+        self.set_dates()
 
     def unit_recalc(self, group_by, columns, agg=["sum"]):
         '''
@@ -147,6 +151,33 @@ class Energy(ABC):
             temp_df = temp_df.aggregate(agg)
             temp_df['direction'] = self.direction
         return temp_df
+
+    def daily_flash_page(self, 
+        filename='daily_flash',
+        pdf=None,
+    ):
+        out_columns = [col for col in self.get_energy.columns if col.endswith("_")]
+        by_day_df = self.get_energy[['day'] + out_columns].groupby('day').sum().reset_index()
+        stat_df = by_day_df[out_columns].agg(['min', 'max', 'mean']).T.reset_index()
+        stat_df = stat_df[stat_df['mean']>0]
+        no_of_measures = stat_df['mean'].count()
+        plt = set_of_speedo(
+            no_of_measures, 
+            5, 5 / no_of_measures,  
+            stat_df.index.tolist(), 
+            stat_df['min'].tolist(),
+            stat_df['max'].tolist(), 
+            stat_df['mean'].tolist(),
+            unit = 'kW', 
+            start_angle=-30,
+            end_angle=210,
+            annotation_fontsize=8,
+            annotation_facecolor='gray', 
+            annotation_edgecolor="black",
+        )
+        plt.savefig(self.output_dir + '{}_({%Y%m%d}-{%Y%m%d})'.format(filename, self.start_date, self.stop_date))
+        print('report saved: ')
+        print(self.output_dir + '{}_({%Y%m%d}-{%Y%m%d})'.format(filename, self.start_date, self.stop_date))
 
     def basic_barplot(self, 
         group_by='day', 
@@ -230,6 +261,7 @@ class Energy(ABC):
         no of timestamp:  {:^23,d}
         export reduction: {:^23.2f}
         no of days:       {:^23,d}
+        kW_cost:          {:^23,.2f} {}
          ----------------------------------------------------------------------------------------------------------------------------
         |    import [kWh] |     export [kWh] | production [kWh] |    balance [kWh] | self cons. [kWh] | total cons. [kWh] |
          ----------------------------------------------------------------------------------------------------------------------------
@@ -240,6 +272,16 @@ class Energy(ABC):
         |{:>16,.2f} | {:>16,.2f} | {:>16,.2f} | {:>16,.2f} | {:>16,.2f} | {:>16,.2f} |
          ----------------------------------------------------------------------------------------------------------------------------
         """
+        saving_output = """
+        total savings in currency: {:>16,.2f} {}
+        total costs in currency:   {:>16,.2f} {}
+        """.format(
+            (self.get_energy['self_consumption_'].sum() + self.get_energy['export_'].sum() * self.export_back) * self.kW_cost,
+            self.currency,
+            self.get_energy['import_'].sum() * self.kW_cost,
+            self.currency
+        ) if self.kW_cost > 0 else ''
+
         days = (self.stop_date - self.start_date).days
         return output.format(
             self.source_name,
@@ -249,6 +291,7 @@ class Energy(ABC):
             self.get_energy.date.count(),
             self.export_back,
             days,
+            self.kW_cost, self.currency,
             self.get_energy['import_'].sum(),
             self.get_energy['export_'].sum(),
             self.get_energy['production_'].sum(),
@@ -260,8 +303,8 @@ class Energy(ABC):
             self.get_energy['production_'].sum() / days,
             self.get_energy['balance_'].sum() / days,
             self.get_energy['self_consumption_'].sum() / days,
-            self.get_energy['total_consumption_'].sum() / days
-        )
+            self.get_energy['total_consumption_'].sum() / days,
+        ) + saving_output
 
     @abstractmethod
     def read_data(self):
@@ -275,6 +318,9 @@ class Energy(ABC):
         return self._energy_df
 
     def set_dates(self):
+        #
+        #   update date_min, date_max based on get_energy_
+        #
         self.start_date = self.get_energy.date.min()
         self.stop_date = self.get_energy.date.max()
 
@@ -284,13 +330,11 @@ class Energy(ABC):
             self.append_df(temp_df)
         else:
             raise TypeError("it should be an DataFrame object") 
-        # self.update_df(temp_df)
-        # self._energy_df = temp_df
-        # self.set_dates(self._energy_df.min(), self._energy_df.max())
-        # if self.parent:
-        #     self.parent.refresh__energy_df()
 
     def append_df(self, temp_df):
+        #
+        #   adding temp_df to _energy_df
+        #
         self.update_df(temp_df)
         self._energy_df = self._energy_df.append(temp_df, ignore_index=True)
         self.set_dates()
@@ -298,6 +342,9 @@ class Energy(ABC):
             self.parent.refresh__energy_df()
 
     def update_df(self, temp_df):
+        #
+        #   addnig calculation column balance_, self_consumption_, total_consumption_
+        #
         self.add_name_and_direction(temp_df, self.source_name, self.direction)
         self.check_energy_columns(temp_df, self.ENERGY_COLUMNS)
         self.extend_datetime_columns(temp_df)
@@ -307,6 +354,9 @@ class Energy(ABC):
 
     @staticmethod
     def add_name_and_direction(temp_df, name, direction):
+        #
+        #   adding standard column source, direction
+        #
         if not "source" in temp_df.columns:
             temp_df["source"] = name
         if not "direction" in temp_df.columns:
@@ -314,6 +364,9 @@ class Energy(ABC):
 
     @staticmethod
     def extend_datetime_columns(temp_df):
+        #
+        #   adding standard analyzing columns: date, time, year, month, week, hour
+        #
         temp_df["day"] = pd.to_datetime(temp_df['date']).dt.date  # .astype(str)
         temp_df['time'] = (
             pd.to_datetime(temp_df['date']).dt.hour * 60 + 
@@ -323,6 +376,10 @@ class Energy(ABC):
         temp_df['month'] = temp_df['date'].dt.strftime("%Y/%m").astype(str)
         temp_df['week'] = temp_df['date'].dt.strftime("%Y/%W").astype(str)
         temp_df['hour'] = temp_df.date.dt.hour
+        if any(temp_df['week'].str[-2:]=='00'):
+            max_day = temp_df.loc[temp_df['week'].str.endswith('00')]['date'].max()
+            max_week = (max_day - pd.Timedelta(days=(max_day.weekday()))).strftime("%Y/%W")
+            temp_df.loc[temp_df['week'].str.endswith('00'), 'week'] = max_week
 
     @staticmethod
     def check_energy_columns(temp_df, columns):
