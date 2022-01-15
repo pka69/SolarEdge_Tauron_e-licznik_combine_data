@@ -11,6 +11,7 @@ licence: *feel free to use*
 * [Technologies](#technologies)
 * [Contact Info](#contact-info)
 * [Project Status](#project-status)
+* [Some graph examples](#Examples)
 
 ## General info
 * based on API collect PV energy production data from SolarEdge inverter 
@@ -18,7 +19,10 @@ licence: *feel free to use*
 * collect data in created obiect (classes: my_energy (abstract), my_SolarEdge, my_Tauron) 
 * based on my_energy methods prepare pdf report 
 * file energy_projection.ipynb based on excel weather historic data train a few models to finally select one to predict ***PV production*** and ***self consumption***. Exaple of prediction in graph bellow 
-![prediction](/images/projection graph 202201-202201.png)
+
+<img src="images/projection graph 202201-202201.png"
+     alt="projection graph"
+     style="float: left; margin-right: 10px;" />
 
 ## Content
 * project include package Energy responsible for collecting and transforming data, grouping and reporting
@@ -88,7 +92,23 @@ Project
 - [ ] energy component configuration in json file, extend for another data supplier)
 - [ ] web open access for users to colect and analyse data
 
-
+## Examples
+* speedometer
+<img src="images/daily_flash_speedo_(20210820-20220110).png"
+     alt="speedometer graph"
+     style="float: left; margin-right: 10px;" />
+* swarmplot
+<img src="images/daily_flash_swarmplot_(20210820-20220110).png"
+     alt="swarmplot graph"
+     style="float: left; margin-right: 10px;" />
+* lineplot
+<img src="images/daily_flash_byHour_1_(20210820-20220110).png"
+     alt="projection graph"
+     style="float: left; margin-right: 10px;" />
+* barplot
+<img src="images/_group_report_b2_(20210820-20220110).png"
+     alt="projection graph"
+     style="float: left; margin-right: 10px;" />
 ----
 
 
