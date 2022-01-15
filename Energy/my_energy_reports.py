@@ -24,7 +24,7 @@ def create_energy_reports(
     group='daily', 
     refresh=True, 
     export_back=0.8,
-    kW_cost=0.6,
+    kWh_cost=0.6,
     limit_periods = None,
 ):
     # create Tauron energy object. Use API Tauron
@@ -33,7 +33,7 @@ def create_energy_reports(
         storage_dir =STORAGE_DIR, 
         output_dir=OUTPUT_DIR,
         refresh=refresh,
-        kW_cost = 0
+        kWh_cost = 0
     )
     if limit_periods: tauron_df.limit_periods(PERIODS_CONVERTER[group], *limit_periods)
     if get_debug(): print(tauron_df)
@@ -44,7 +44,7 @@ def create_energy_reports(
         storage_dir =STORAGE_DIR, 
         output_dir=OUTPUT_DIR,
         refresh=refresh,
-        kW_cost = 0
+        kWh_cost = 0
     )
     if limit_periods: solar_df.limit_periods(PERIODS_CONVERTER[group], *limit_periods)
     if get_debug(): print(solar_df)
@@ -55,7 +55,7 @@ def create_energy_reports(
         storage_dir =STORAGE_DIR, 
         output_dir=OUTPUT_DIR,
         export_back = export_back, 
-        kW_cost = kW_cost
+        kWh_cost = kWh_cost
     )
     if get_debug(): print(my_energy_df)
 

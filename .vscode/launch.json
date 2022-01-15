@@ -10,7 +10,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args":["-p=8", "-d"]
+            "args":["-p=8", "-dft", "-g", "weekly"]
             // "args":["-r", "-b", "0.3", "-kW", "0.6", "-p", "4", "-g", "monthly", "-l", "2021/09-2021/12"]
             // "args": ["-d"]
             // "args": ["-r"]

@@ -1,12 +1,12 @@
 from datetime import date, timedelta, datetime
 from abc import ABC, abstractmethod
-from numpy import multiply
 
+from numpy import multiply
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
-from ..subGraphs.my_plots import barplot, lineplot, histplot
-from ..subGraphs.my_graph_speedo import speedometer, set_of_speedo
+from ..subGraphs.my_plots import barplot, lineplot, set_of_speedo, swarmplot, simple_data_preparation
 from ..subTools.my_pdf import PDF
 
 from Energy import get_debug
@@ -17,6 +17,7 @@ def filter_and_group_df(df, filter, group_by, agg='sum', add_avg='' ):
         'year': [str, "'{}'".format],
         'month': [str, "'{}'".format],
         'week': [str, "'{}'".format],
+        'hour': [np.int64, int],
         'direction': [str, "'{}'".format],
         'date': [datetime, datetime.fromisoformat],
         'production_': [np.float64, float],
@@ -48,7 +49,7 @@ def filter_and_group_df(df, filter, group_by, agg='sum', add_avg='' ):
     if group_by:
         temp_df = temp_df.groupby(group_by).agg(agg)
         temp_df = temp_df.reset_index()
-    if add_avg in group_by:
+    if add_avg and (add_avg in group_by):
         if type(group_by)==list:
             new_filter = [item for item in group_by if item!=add_avg]
             avg_df = temp_df.groupby(new_filter).mean()
@@ -64,14 +65,14 @@ def filter_and_group_df(df, filter, group_by, agg='sum', add_avg='' ):
             # temp_df[item + '_mean'] = temp_df[item] / 
         
         
-    return query, filter_name
+    return temp_df, filter_name
     
 class Energy(ABC):
     '''
     main energy module. 
     Represent all common data for future classes:
     ENERGY_COLUMNS = [production_, export_, import_, direction]
-    Unit recalculation: Wh, kWh, MWh
+    Unit recalculation: Wh, kWhh, MWh
     source_name - source of data
 
     '''
@@ -98,7 +99,7 @@ class Energy(ABC):
             owner = 'Piotr Kalista', 
             location = 'ul. Bluszczowa 4c, Kraków',
             refresh = True,
-            kW_cost = 0.65,
+            kWh_cost = 0.65,
             currency = "PLN"
                  ):
         self._energy_df = pd.DataFrame()
@@ -108,7 +109,7 @@ class Energy(ABC):
         self.output_dir = output_dir
         self.parent = parent
         self.export_back = export_back
-        self.unit = unit, 
+        self.unit = unit
         self.day_batch = day_batch
         self.load_dalta = False
         self.start_date = None
@@ -117,7 +118,7 @@ class Energy(ABC):
         self.location = location
         self.debug = get_debug()
         self.refresh = refresh
-        self.kW_cost = kW_cost
+        self.kWh_cost = kWh_cost
         self.currency = currency
 
     def limit_periods(self, period, limit_min, limit_max):
@@ -160,36 +161,267 @@ class Energy(ABC):
         by_day_df = self.get_energy[['day'] + out_columns].groupby('day').sum().reset_index()
         stat_df = by_day_df[out_columns].agg(['min', 'max', 'mean']).T.reset_index()
         stat_df = stat_df[stat_df['mean']>0]
-        no_of_measures = stat_df['mean'].count()
-        plt = set_of_speedo(
-            no_of_measures, 
-            5, 5 / no_of_measures,  
-            stat_df.index.tolist(), 
-            stat_df['min'].tolist(),
-            stat_df['max'].tolist(), 
-            stat_df['mean'].tolist(),
-            unit = 'kW', 
-            start_angle=-30,
-            end_angle=210,
-            annotation_fontsize=8,
-            annotation_facecolor='gray', 
-            annotation_edgecolor="black",
+        set_of_speedo(stat_df, self.output_dir + '{}_speedo_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date))
+        if self.debug:
+            print('saved png report: ', end="")
+            print(self.output_dir + '{}_speedo_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date))
+        if pdf:
+            pdf.add_page()
+            pdf.set_font('Lato', 'B', 12)
+            pdf.cell(0, 10, ' Flash Report. Period {:%Y/%m/%d}-{:%Y/%m/%d}. export back: {:.1%}, cost {:.2f} {}/{} '.format(
+                self.start_date, self.stop_date, self.export_back, self.kWh_cost, self.currency, self.unit) , 1, 1, 'C')
+            
+            pdf.set_font('Lato', 'B', 8)
+            pdf.cell(0, 5, 'average of main statistic (daily). Range between daily min - daily max', 0, 1, 'C')
+            pdf.image(self.output_dir + '{}_speedo_({:%Y%m%d}-{:%Y%m%d}).png'.format(filename, self.start_date, self.stop_date),None, None, 200, 50, type='PNG')
+            pdf.cell(0, 5, ' '.join(self.saving_output().split('\n')) , 0, 1, 'C')
+        group_by='hour' 
+        columns=['production_', 'export_']
+        colors=[] 
+        filename_g=self.output_dir + '{}_byHour_1_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
+        agg="max" 
+        fill=[]
+        fill_between = {
+            'self_consumption': ['production_', 'export_'],
+            'mean_self_consumption': ['mean_production_', 'mean_export_'],
+        }
+        filter = ''
+        unit=self.unit
+        title = 'Max Production and Export energy by hour a day'
+        mean=True 
+        ax=None
+        figsize=(6, 3)
+        lineplot(self.get_energy, group_by, columns, 
+            colors=colors, fill=fill, agg=agg, 
+            filter=filter, unit=unit, fill_between=fill_between,
+            filename=filename_g, mean=mean, title = title, 
+            figsize=figsize, ax=ax
         )
-        plt.savefig(self.output_dir + '{}_({%Y%m%d}-{%Y%m%d})'.format(filename, self.start_date, self.stop_date))
-        print('report saved: ')
-        print(self.output_dir + '{}_({%Y%m%d}-{%Y%m%d})'.format(filename, self.start_date, self.stop_date))
-
+        if self.debug:
+            print('saved png report: ', end="")
+            print(filename_g)
+        if pdf:
+            pdf.image(filename_g + '.png',50, None, 120, 60, type='PNG') 
+        columns=['total_consumption_', 'import_']
+        title = 'max Import and Total Consumption energy by hour a day'
+        fill_between = ''
+        filename_g=self.output_dir + '{}_byHour_2_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
+        lineplot(self.get_energy, group_by, columns, 
+            colors=colors, fill=fill, agg=agg, 
+            filter=filter, unit=unit,  
+            filename=filename_g, mean=mean, title = title, 
+            figsize=figsize, ax=ax
+        )
+        if self.debug:
+            print('saved png report: ', end="")
+            print(filename_g)
+        if pdf:
+            pdf.image(filename_g + '.png',50, None, 120, 60, type='PNG') 
+        filename_g=self.output_dir + '{}_swarmplot_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)   
+        group_by='day' 
+        swarmplot(
+            self.get_energy, group_by, out_columns,
+            agg=sum,
+            unit=unit,
+            filename=filename_g,
+            figsize=figsize, 
+            title="daily distribution by category"
+        )
+        if self.debug:
+            print('saved png report: ', end="")
+            print(filename_g)
+        if pdf:
+            pdf.image(filename_g + '.png',50, None, 120, 60, type='PNG') 
+            
+    def group_report_pages(self, 
+        filename='_group_report',
+        group_by='day',
+        table_include=False,
+        pdf=None,
+    ):
+        out_columns = [col for col in self.get_energy.columns if col.endswith("_") and (self.get_energy[col].min()!=0 or self.get_energy[col].max()!=0 )]
+        group_by = group_by.split("(")[0]
+        unit, multiply = self.unit_recalc(group_by, out_columns, 'sum')
+        if table_include:
+            table_df = simple_data_preparation(self.get_energy, group_by=group_by, series_to_plot=out_columns,unit=self.unit)[0]
+            table_df_avg = table_df.mean()
+            table_df_avg = {col: table_df_avg[col] for col in out_columns}
+            table_df_avg[group_by] = 'mean'
+            table_df = table_df.append(table_df_avg, ignore_index=True)
+            for col in out_columns:
+                table_df[col + "_(% avg)"] = table_df[col] / table_df_avg[col]
+            temp_col = [group_by] + sorted(table_df.columns.tolist()[1:])
+            table_df = table_df[temp_col]
+            filename_g = self.output_dir + '{}_table_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
+            if pdf:
+                
+                for row in range(len(table_df.index)):
+                    if row % 46 == 0:
+                        pdf.add_page()
+                        pdf.set_font('Lato', 'B', 14)
+                        pdf.cell(0,10, 'Summary table by {}, period: {:%Y/%m/%d}-{:%Y/%m/%d}{}'.format(
+                            group_by, self.start_date, self.stop_date, ' (cont.)' if row > 0 else '') , 0, 1, 'C')
+                        pdf.set_font('Roboto', '', 6)
+                        pdf.cell(45)
+                        pdf.set_fill_color(125, 125, 125)
+                        for idx, col in enumerate(temp_col[1:]):
+                            if idx % 2 == 0:
+                                pdf.cell(22, 5, col.strip().replace("_"," ") , 1, 0, 'C', 1)
+                        pdf.cell(0,5,' ', 0,1)
+                        pdf.cell(5)
+                        pdf.cell(40,5, group_by , 1, 0, 'C', True)
+                        for idx, col in enumerate(temp_col[1:]):
+                            pdf.cell(12, 5, unit , 1, 0, 'C', 1) if idx % 2 == 0 else pdf.cell(10, 5, "% of avg" , 1, 0, 'C', 1)
+                        pdf.cell(0,5,' ', 0, 1)
+                        fill_cell = 0
+                        
+                    pdf.cell(5)
+                    if str(table_df.iloc[row][group_by]) == "mean": fill_cell = 1
+                    pdf.cell(40,5, str(table_df.iloc[row][group_by]) , 1, 0, 'C', fill_cell)
+                    for idx, col in enumerate(temp_col[1:]):
+                        if idx % 2 == 0:
+                            pdf.cell(12,5, '{:,.2f}'.format(multiply * table_df.iloc[row][col]).replace(',', ' ') , 1, 0, 'C', fill_cell)
+                        else:
+                            pdf.cell(10,5, '{:,.1%}'.format(table_df.iloc[row][col]).replace(',', ' ') , 1, 0, 'C', fill_cell)
+                    pdf.cell(0,5,' ', 0,1)
+                pdf.set_font('Roboto', 'B', 6)
+                pdf.cell(5)
+                pdf.cell(40,5, 'Summary' , 1, 0, 'C', 0)
+                for idx, col in enumerate(temp_col[1:]):
+                    pdf.cell(12, 5, '{:,.2f}'.format(multiply * table_df[table_df[group_by]!='mean'][col].sum()).replace(',', ' ') , 1, 0, 'C', 0) if idx % 2 == 0 else pdf.cell(10, 5, "" , 1, 0, 'C', 0)
+            table_df.to_excel(filename_g+'.xlsx')
+            if self.debug:
+                print('saved xlsx report: ', end="")
+                print(self.output_dir + '{}_speedo_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date))
+        filename_g = self.output_dir + '{}_b1_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
+        self.basic_barplot( 
+            group_by=group_by, 
+            columns=['production_', 'self_consumption_'], 
+            colors=['green', 'blue'], 
+            filename=filename_g, 
+            agg="sum", 
+            mean=False, 
+            ax=None
+        )
+        filename_g = self.output_dir + '{}_b2_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
+        self.basic_barplot( 
+            group_by=group_by, 
+            columns=['total_consumption_', 'import_'], 
+            colors=['gray', 'red'], 
+            filename=filename_g, 
+            agg="sum", 
+            mean=False, 
+            ax=None
+        )
+        filename_g = self.output_dir + '{}_b3_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
+        self.basic_barplot( 
+            group_by=group_by, 
+            columns=['balance_', 'production_'], 
+            colors=['orange', 'green'], 
+            filename=filename_g, 
+            agg="sum", 
+            mean=False, 
+            ax=None
+        )
+        if pdf:
+            pdf.add_page()
+            pdf.set_font('Lato', 'B', 12)
+            pdf.cell(0, 10, ' simply bar reports. Period {:%Y/%m/%d}-{:%Y/%m/%d}. export back: {:.1%}, cost {:.2f} {}/{} '.format(
+                self.start_date, self.stop_date, self.export_back, self.kWh_cost, self.currency, self.unit) , 0, 1, 'C')
+            pdf.set_font('Lato', 'B', 8)
+            pdf.cell(0, 5, 'summary production / self consumption energy (by {}).'.format(group_by), 0, 1, 'C')
+            filename_g = self.output_dir + '{}_b1_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
+            pdf.image(filename_g + '.png', None, None, 150, 75, type='PNG')
+            pdf.cell(0, 5, 'summary total consumption / import energy (by {}).'.format(group_by), 0, 1, 'C')
+            filename_g = self.output_dir + '{}_b2_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
+            pdf.image(filename_g + '.png', None, None, 150, 75, type='PNG')
+            pdf.cell(0, 5, 'summary energy balance / PV production (by {}).'.format(group_by), 0, 1, 'C')
+            filename_g = self.output_dir + '{}_b3_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
+            pdf.image(filename_g + '.png', None, None, 150, 75, type='PNG')
+            
+        filename_g = self.output_dir + '{}_l1_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
+        filter_day = {
+            'od 8 rano': {
+                'Column': 'hour',
+                'Condition': '>=',
+                "Value": 8,
+            },
+            'do 20 wieczorem': {
+                'Column': 'hour',
+                'Condition': '<',
+                "Value": 20,
+                'logic_between': "and"
+            },
+        }
+        filter_night = {
+            'od 8 rano': {
+                'Column': 'hour',
+                'Condition': '<',
+                "Value": 8,
+            },
+            'do 20 wieczorem': {
+                'Column': 'hour',
+                'Condition': '>=',
+                "Value": 20,
+                'logic_between': "and"
+            },
+        }
+        self.basic_lineplot(
+            group_by=group_by, 
+            columns=['production_', 'import_', 'export_', ], 
+            colors=[], 
+            fill=['production_'], 
+            filename=filename_g, 
+            agg="sum", 
+            mean=False, 
+            ax=None
+        )
+        filename_g = self.output_dir + '{}_l2_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
+        self.basic_lineplot(
+            group_by=group_by, 
+            columns=['total_consumption_', 'production_', 'self_consumption_'], 
+            colors=[], 
+            fill=['production_'], 
+            filename=filename_g, 
+            agg="sum", 
+            mean=False, 
+            ax=None
+        )
+        filename_g = self.output_dir + '{}_sw1_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
+        swarmplot(
+            self.get_energy, group_by, out_columns,
+            agg=sum,
+            unit=unit,
+            filename=filename_g,
+        )
+        if pdf:
+            pdf.add_page()
+            pdf.set_font('Lato', 'B', 12)
+            pdf.cell(0, 10, ' simply line reports. Period {:%Y/%m/%d}-{:%Y/%m/%d}. export back: {:.1%}, cost {:.2f} {}/{} '.format(
+                self.start_date, self.stop_date, self.export_back, self.kWh_cost, self.currency, self.unit) , 0, 1, 'C')
+            pdf.set_font('Lato', 'B', 8)
+            pdf.cell(0, 5, 'production, import, export energy (by {}).'.format(group_by), 0, 1, 'C')
+            filename_g = self.output_dir + '{}_l1_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
+            pdf.image(filename_g + '.png', None, None, 150, 75, type='PNG')
+            pdf.cell(0, 5, 'total consumption, production, self consumption energy (by {}).'.format(group_by), 0, 1, 'C')
+            filename_g = self.output_dir + '{}_l2_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
+            pdf.image(filename_g + '.png', None, None, 150, 75, type='PNG')
+            pdf.cell(0, 5, 'distribution per category (by {}).'.format(group_by), 0, 1, 'C')
+            filename_g = self.output_dir + '{}_sw1_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
+            pdf.image(filename_g + '.png', None, None, 150, 75, type='PNG')
+        
     def basic_barplot(self, 
         group_by='day', 
         columns=['production_', 'import_', 'export_'], 
+        agg="sum", 
         colors=[], 
         filename='lineplot', 
-        agg="sum", 
         mean=False, 
-        ax=None
+        ax=None,
+        **kwargs
     ):
         unit, multiply = self.unit_recalc(group_by, columns, agg)
-        return barplot(self.get_energy, group_by, columns,colors, agg, unit=unit, multiply=multiply, filename=filename, mean=mean, ax=ax)
+        return barplot(self.get_energy, group_by, columns,colors, agg, unit=unit, multiply=multiply, filename=filename, mean=mean, ax=ax, **kwargs)
 
     def basic_lineplot(self, 
         group_by='day', 
@@ -203,7 +435,8 @@ class Energy(ABC):
         ax=None
     ):
         unit, multiply = self.unit_recalc(group_by, columns, agg)
-        return lineplot(self.get_energy, group_by, columns, colors, fill, agg, filter=filter, unit=unit, multiply=multiply, filename=filename, mean=mean, ax=ax)
+        
+        return lineplot(self.get_energy, group_by, columns, colors=colors, fill=fill, agg=agg, filter=filter, unit=unit, multiply=multiply, filename=filename, mean=mean, ax=ax)
     
     def create_pdf_report(self, 
         group_by, 
@@ -253,6 +486,18 @@ class Energy(ABC):
     def str_head(self):
         return ''
     
+    def saving_output(self):
+        output = """
+        total savings in currency: {:>16,.2f} {}
+        total costs in currency:   {:>16,.2f} {}
+        """.format(
+            (self.get_energy['self_consumption_'].sum() + self.get_energy['export_'].sum() * self.export_back) * self.kWh_cost,
+            self.currency,
+            self.get_energy['import_'].sum() * self.kWh_cost,
+            self.currency
+        ) if self.kWh_cost > 0 else ''
+        return output
+    
     def __str__(self) -> str:
         output = """
         source data:      {:^23}
@@ -261,7 +506,7 @@ class Energy(ABC):
         no of timestamp:  {:^23,d}
         export reduction: {:^23.2f}
         no of days:       {:^23,d}
-        kW_cost:          {:^23,.2f} {}
+        kWh_cost:          {:^23,.2f} {}
          ----------------------------------------------------------------------------------------------------------------------------
         |    import [kWh] |     export [kWh] | production [kWh] |    balance [kWh] | self cons. [kWh] | total cons. [kWh] |
          ----------------------------------------------------------------------------------------------------------------------------
@@ -272,15 +517,6 @@ class Energy(ABC):
         |{:>16,.2f} | {:>16,.2f} | {:>16,.2f} | {:>16,.2f} | {:>16,.2f} | {:>16,.2f} |
          ----------------------------------------------------------------------------------------------------------------------------
         """
-        saving_output = """
-        total savings in currency: {:>16,.2f} {}
-        total costs in currency:   {:>16,.2f} {}
-        """.format(
-            (self.get_energy['self_consumption_'].sum() + self.get_energy['export_'].sum() * self.export_back) * self.kW_cost,
-            self.currency,
-            self.get_energy['import_'].sum() * self.kW_cost,
-            self.currency
-        ) if self.kW_cost > 0 else ''
 
         days = (self.stop_date - self.start_date).days
         return output.format(
@@ -291,7 +527,7 @@ class Energy(ABC):
             self.get_energy.date.count(),
             self.export_back,
             days,
-            self.kW_cost, self.currency,
+            self.kWh_cost, self.currency,
             self.get_energy['import_'].sum(),
             self.get_energy['export_'].sum(),
             self.get_energy['production_'].sum(),
@@ -304,7 +540,7 @@ class Energy(ABC):
             self.get_energy['balance_'].sum() / days,
             self.get_energy['self_consumption_'].sum() / days,
             self.get_energy['total_consumption_'].sum() / days,
-        ) + saving_output
+        ) + self.saving_output()
 
     @abstractmethod
     def read_data(self):

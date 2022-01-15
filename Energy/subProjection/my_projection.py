@@ -1,14 +1,15 @@
+import pickle
+
 import pandas as pd
 from datetime import timedelta
 
-from pandas.core.tools.datetimes import Scalar
-
 from Energy.subTools.weather_data import avg_weather_df
+from Energy.subTools.projection_tools import PROJECTION_COLUMNS, MODEL_NAME
+from Energy.subTools.projection_tools import projection_in_graph, projection_refactor, savings_df_report , standarize_data
+from Energy import STORAGE_DIR, OUTPUT_DIR, get_debug
 
-MODEL_COLUMN = ['%sun', '%midsun', '%cloud', 'avg_temp', 'suntime_minutes']
-PROJECTION_COLUMNS = ['production_', 'export_', 'import_']
 
-def prepare_dataframes(energy_df, projection):
+def prepare_dataframes(energy_df, projection, pdf = None):
     weather_df = avg_weather_df()
     monthly_energy_df = energy_df.get_energy.groupby('month').sum().reset_index()
     months = monthly_energy_df.month.values.tolist()
@@ -26,44 +27,50 @@ def prepare_dataframes(energy_df, projection):
         'month': [int(x[-2:]) for x in projection_months],
         'month_str': projection_months
     })
-    projection_df.merge(weather_df[['month', '%sun', '%midsun', '%cloud', 'avg_temp', 'suntime_minutes']], how='inner', on="month")
+    projection_df = projection_df.merge(weather_df[['month', '%sun', '%midsun', '%cloud', 'avg_temp', 'suntime_minutes']], how='inner', on="month")
     monthly_energy_df = monthly_energy_df.merge(weather_df[['month', '%sun', '%midsun', '%cloud', 'avg_temp', 'suntime_minutes']], how='inner', on="month")
     return projection_df, monthly_energy_df
-
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import cross_val_score
-from sklearn.linear_model import Ridge, LinearRegression
-from sklearn import metrics
-from sklearn.preprocessing import Normalizer, StandardScaler, MinMaxScaler
 
 def create_monthly_projection(energy_df, projection = 6, pdf=None):
     projection_df, monthly_energy_df = prepare_dataframes(energy_df, projection)
     prediction = {}
+        
+    for idx, projection_col in enumerate(PROJECTION_COLUMNS):
+        with open(STORAGE_DIR + MODEL_NAME[idx], 'rb') as file:
+            model = pickle.load(file)
+            scaler = pickle.load(file)
+            MODEL_COLUMN = pickle.load(file)
+        sel_projection_df = projection_df[MODEL_COLUMN]
+        standardised_projection_df = standarize_data(scaler, sel_projection_df, False, MODEL_COLUMN)
+        prediction[projection_col] = model.predict(standardised_projection_df)
+        projection_df[projection_col] = prediction[projection_col]
+
+    projection_refactor(projection_df)
     
-    X = monthly_energy_df[MODEL_COLUMN]
-    for projection_col in PROJECTION_COLUMNS:
+    if get_debug():
+        print(savings_df_report(monthly_energy_df, "historical data summary", kWh_cost = energy_df.kWh_cost, curr = energy_df.currency))
+        print(savings_df_report(projection_df, "projection data summary", kWh_cost = energy_df.kWh_cost, curr = energy_df.currency))
+    
+    if pdf:
+        pdf.add_page()
+        pdf.set_font('Lato', 'B', 12)
+        pdf.cell(0,10, 'Historical data. Period {}-{}'.format(monthly_energy_df['month_str'].min(), monthly_energy_df['month_str'].max()) , 0, 1, 'C')
         
-        y = monthly_energy_df[projection_col]
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=101)
-        scaler = MinMaxScaler()
-        scaler.fit(X_train[MODEL_COLUMN[3:]])
-        temp = scaler.transform(X_train[MODEL_COLUMN[3:]])
-        X_train = X_train[MODEL_COLUMN[:3]]
-        X_train[MODEL_COLUMN[3:]] = temp
-        temp = scaler.transform(X_test[MODEL_COLUMN[3:]])
-        X_test = X_test[MODEL_COLUMN[:3]]
-        X_test[MODEL_COLUMN[3:]] = temp
-        model = LinearRegression(kernel='linear', C=1, random_state=42)
-        scores = cross_val_score(model, X_train, y_train, cv=3, scoring='neg_mean_squared_error')
-        model = Ridge(alpha=1, random_state=42)
-        scores = cross_val_score(model, X_train, y_train, cv=3, scoring='neg_mean_squared_error')
-        temp = scaler.transform(projection_df[MODEL_COLUMN[3:]])
+        pdf.set_font('Lato', '', 8)
+        savings_msg = savings_df_report(monthly_energy_df, "historical data summary", kWh_cost = energy_df.kWh_cost, curr = energy_df.currency).split('\n')
         
-        predict = projection_df[MODEL_COLUMN[:3]]
-        predict[MODEL_COLUMN[3:]] = temp
-
-
-
+        for msg in savings_msg:
+            pdf.cell(100, 6, msg , 0, 1, 'R')
+        pdf.set_font('Lato', 'B', 8)
+        pdf.cell(0, 10, 'Projection Report. Period {}-{}'.format(projection_df['month_str'].min(), projection_df['month_str'].min()) , 0, 1, 'C')
+        pdf.set_font('Lato', '', 8)
+        savings_msg = savings_df_report(projection_df, "projection data summary", kWh_cost = energy_df.kWh_cost, curr = energy_df.currency).split('\n')
+        for msg in savings_msg:
+            pdf.cell(100, 6, msg , 0, 1, 'R')
+        filename = OUTPUT_DIR + 'projection graph {}-{}'.format(projection_df['month_str'].min().replace('/', ''), projection_df['month_str'].min().replace('/', ''))
+        projection_in_graph(monthly_energy_df, projection_df, filename=filename)
+        pdf.image(filename+'.png', None, None, 200, 100, type='PNG')
+    return prediction
 
     
 

@@ -1,7 +1,6 @@
 from datetime import date, timedelta
 
 import pandas as pd
-import numpy as np
 
 from solaredge import solaredge as se
 
@@ -43,7 +42,7 @@ class MySolarEdge(Energy):
             self.load_from_file()
             start_date = self.drop_last_day()
             if date.today() - start_date <= timedelta(days=1):
-                if self.debug: print(f'{self.source_name}\nTotal produced energy: {self.get_energy.production_.sum():,.2f} wh')
+                if self.debug: print(f'{self.source_name}\nTotal produced energy: {self.get_energy.production_.sum():,.2f} {self.unit}')
                 return
             if not self.refresh: return
         except FileNotFoundError as E:
@@ -70,7 +69,7 @@ class MySolarEdge(Energy):
             self.append_df(temp_df)
             self.save_to_file()
             if self.debug:
-                print(f'{self.source_name}\nTotal produced energy: {self.get_energy.production_.sum()} wh')
+                print(f'{self.source_name}\nTotal produced energy: {self.get_energy.production_.sum()} {self.unit}')
         except Exception as E:
             print("!!!!!\n", E)  
         return

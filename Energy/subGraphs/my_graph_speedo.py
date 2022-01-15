@@ -21,7 +21,7 @@ DAL = {  #  DEFAULT_ARG_LIST
     'snap_to_pos': False,
     'title': '',
     'unit': '',
-    'label_fontsize': 7,
+    'label_fontsize': 5,
     'label_fontcolor': mpl.rcParams['axes.labelcolor'],
     'title_fontcolor': mpl.rcParams['axes.labelcolor'],
     'title_facecolor': None,
@@ -36,7 +36,7 @@ DAL = {  #  DEFAULT_ARG_LIST
     'annotation_edgecolor': None,
     'annotation_offset': 0.75,
     'annotation_pad': 0,
-    'annotation_fontsize': 16,
+    'annotation_fontsize': 5,
     'draw_labels': True,
     'labels': None,
     'range_labels': None,
@@ -164,14 +164,14 @@ def speedometer(
             #         "label:", label
             #     )
             if local_DAL['rotate_labels']:
-                radius_factor = 0.625
+                radius_factor = 1.1
                 adj = -90
                 # if angle < 90:
                 #     adj = 90
                 # else:
                 #     adj = -90
             else:
-                radius_factor = 0.65
+                radius_factor = 1.1
                 if (angle < 0) | (angle > 180):
                     adj = 180
                 else:
@@ -180,6 +180,8 @@ def speedometer(
             if type(label) == str:
                 if label[-2:] == '.0':
                     label = label[:-2]
+            else:
+                label = '{:.2f}'.format(label) if isinstance(label, float) else '{:d}'.format(label)
 
             ax.text(local_DAL['center'][0] + radius_factor * local_DAL['radius'] * np.cos(np.radians(angle)),
                 local_DAL['center'][1] + radius_factor * local_DAL['radius'] * np.sin(np.radians(angle)),
@@ -235,7 +237,7 @@ def speedometer(
         # alpha=0.5,
         zorder=10))
 
-    set_annotation_text(local_DAL, value)
+    set_annotation_text(local_DAL, '{:.2f}'.format(value) if isinstance(value, float) else '{:d}'.format(value))
 
     annotation = ax.text(local_DAL['center'][0], local_DAL['center'][1] - local_DAL['annotation_offset'] * local_DAL['radius'], 
         local_DAL['annotation_text'], horizontalalignment='center',
@@ -268,59 +270,3 @@ def speedometer(
         rec = ax.add_patch(rec)
         rec.set_clip_on(False)
 
-def set_of_speedo(
-    no_of_speedo, weight, hight, columns, min_value, max_value, speedo_value, 
-    unit='m/s',
-    **kwargs):
-    fig, ax = plt.subplots(1,no_of_speedo,figsize = (weight, hight), dpi=200)
-    for idx, col in enumerate(columns):
-        speedometer(
-            ax[idx],
-            min_value[idx], 
-            max_value[idx],
-            speedo_value[idx],
-            title=col.replace("_", " "),
-            **kwargs
-        )
-    return plt
-
-
-
-
-if __name__ == "__main__":
-    test_data = [
-            [40, 59.9, 81, 90.7, 103.7, 120],
-            ['Niedowaga', 'W normie', 'Nadwaga', 'Otyłość I', 'Otyłość II'],
-            ['lightblue', '#00CC00', 'yellow', 'orange', 'red'],
-        ]
-    fig, ax = plt.subplots(1,2,figsize = (5,2), dpi=200)
-
-    speedometer(ax[0], 0, 100, 75, fade_alpha = 1, 
-                unit='m/s',
-                start_angle=-90,
-                end_angle=180,
-                annotation_fontsize=10,
-                annotation_facecolor='gray', 
-                annotation_edgecolor="black",
-                # title_pad=2,
-    )
-    ax[0].axis('off')
-    speedometer(ax[1], 40, 120, 100, 
-                segments_per_color=0, 
-                colors = test_data[2], 
-                range_labels = test_data[1], 
-                midpoint_values=test_data[0], 
-                fade_alpha = 1,
-                title="Waga",
-                unit='kg',
-                annotation_fontsize=10,
-                annotation_facecolor='lightgray', 
-                annotation_pad=0.5,
-                annotation_offset=0.6,
-                # annotation_edgecolor="b",
-                # reverse=True,
-                )
-    ax[1].axis('off')
-    ax[1].set_title('Waga')
-    plt.savefig("testowanie.png")
-    plt.show()

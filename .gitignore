@@ -1,0 +1,9 @@
+*.pyc
+LoginData.py
+.vscode
+__pycache__/
+*.csv
+*.xlsx
+imported/
+output/
+.vscode/
