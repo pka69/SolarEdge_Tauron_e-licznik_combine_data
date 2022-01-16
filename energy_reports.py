@@ -31,15 +31,7 @@ parser.add_argument("-g", "--group", default='daily', help="grouping param(daily
 parser.add_argument('-l', '--limits', default='', help='range of periods to report (format 2021/08-2022/02')
 # try
 args = parser.parse_args()
-# except SystemExit as E:
-#     # print('----------------------\nwystąpił bład w parametrach - {}\n----------------------'.format(E))
-#     parser.print_help(sys.stderr)
-#     sys.exit()
-# except TypeError as E:
-#     # print('----------------------\nwystąpił bład w parametrach - {}\n----------------------'.format(E))
-#     parser.print_help(sys.stderr)
-#     sys.exit()
-#
+
 # if no args print message and stop program
 #
 if len(sys.argv) == 1:
