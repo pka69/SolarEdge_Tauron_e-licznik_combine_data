@@ -432,7 +432,8 @@ class Energy(ABC):
         **kwargs
     ):
         unit, multiply = self.unit_recalc(group_by, columns, agg)
-        return barplot(self.get_energy, group_by, columns,colors, agg, unit=unit, multiply=multiply, filename=filename, mean=mean, ax=ax, **kwargs)
+        return barplot(self.get_energy, group_by, columns,colors, agg, unit=unit, 
+                       multiply=multiply, filename=filename, mean=mean, ax=ax, **kwargs)
 
     def basic_swarmplot(self, 
         group_by='day', 
@@ -446,7 +447,8 @@ class Energy(ABC):
         **kwargs
     ):
         unit, multiply = self.unit_recalc(group_by, columns, agg)
-        return swarmplot(self.get_energy, group_by, columns,colors=colors, agg=agg, unit=unit, multiply=multiply, filename=filename, mean=mean, dotsize=dotsize, ax=ax, **kwargs)
+        return swarmplot(self.get_energy, group_by, columns,colors=colors, agg=agg, 
+                         unit=unit, multiply=multiply, filename=filename, mean=mean, dotsize=dotsize, ax=ax, **kwargs)
 
     def basic_lineplot(self, 
         group_by='day', 
@@ -457,11 +459,13 @@ class Energy(ABC):
         agg="sum", 
         filter='', 
         mean=False, 
-        ax=None
+        ax=None,
+        **kwargs
     ):
         unit, multiply = self.unit_recalc(group_by, columns, agg)
         
-        return lineplot(self.get_energy, group_by, columns, colors=colors, fill=fill, agg=agg, filter=filter, unit=unit, multiply=multiply, filename=filename, mean=mean, ax=ax)
+        return lineplot(self.get_energy, group_by, columns, colors=colors, 
+                        fill=fill, agg=agg, filter=filter, unit=unit, multiply=multiply, filename=filename, mean=mean, ax=ax, **kwargs)
     
     def create_pdf_report(self, 
         group_by, 

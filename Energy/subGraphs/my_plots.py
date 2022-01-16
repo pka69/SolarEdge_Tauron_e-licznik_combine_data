@@ -66,10 +66,11 @@ def barplot(
     unit='', 
     multiply=1, 
     mean=False, 
-    ax=None
+    ax=None,
+    figsize=(8,4),
 ):
     if not ax:
-        fig, ax = plt.subplots(figsize=(8,4), dpi=200)
+        fig, ax = plt.subplots(figsize=figsize, dpi=200)
         fig.tight_layout()
     group_df, series_to_plot, colors, fill  = simple_data_preparation(
         df=df, 
