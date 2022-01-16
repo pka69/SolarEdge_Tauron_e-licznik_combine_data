@@ -57,8 +57,9 @@ Project
         other data (weather_data.xlsx)
 ```
 * main directory contains two files:
-    * energy_reports.py
-    * energy_projection.ipynb
+    * energy_reports.py (main program)
+    * energy_projection.ipynb (projection models calc and pickle)
+    * easy_example.ipynd (simply examples of usage)
 
 ## way of working
 * main program ***energy_reports.py*** use start parameters to configure the way of working:

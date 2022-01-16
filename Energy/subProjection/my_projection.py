@@ -33,7 +33,7 @@ def prepare_dataframes(energy_df, projection, pdf = None):
 
 def create_monthly_projection(energy_df, projection = 6, pdf=None):
     projection_df, monthly_energy_df = prepare_dataframes(energy_df, projection)
-    prediction = {}
+    projection = {}
         
     for idx, projection_col in enumerate(PROJECTION_COLUMNS):
         with open(STORAGE_DIR + MODEL_NAME[idx], 'rb') as file:
@@ -42,8 +42,8 @@ def create_monthly_projection(energy_df, projection = 6, pdf=None):
             MODEL_COLUMN = pickle.load(file)
         sel_projection_df = projection_df[MODEL_COLUMN]
         standardised_projection_df = standarize_data(scaler, sel_projection_df, False, MODEL_COLUMN)
-        prediction[projection_col] = model.predict(standardised_projection_df)
-        projection_df[projection_col] = prediction[projection_col]
+        projection[projection_col] = model.predict(standardised_projection_df)
+        projection_df[projection_col] = projection[projection_col]
 
     projection_refactor(projection_df)
     
@@ -70,7 +70,9 @@ def create_monthly_projection(energy_df, projection = 6, pdf=None):
         filename = OUTPUT_DIR + 'projection graph {}-{}'.format(projection_df['month_str'].min().replace('/', ''), projection_df['month_str'].min().replace('/', ''))
         projection_in_graph(monthly_energy_df, projection_df, filename=filename)
         pdf.image(filename+'.png', None, None, 200, 100, type='PNG')
-    return prediction
+    else:
+        projection_in_graph(monthly_energy_df, projection_df, filename='')
+    return monthly_energy_df, projection_df
 
     
 

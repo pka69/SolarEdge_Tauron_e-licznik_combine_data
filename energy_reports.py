@@ -42,9 +42,9 @@ args = parser.parse_args()
 #
 # if no args print message and stop program
 #
-# if len(sys.argv) == 1:
-#     parser.print_help(sys.stderr) 
-#     sys.exit()
+if len(sys.argv) == 1:
+    parser.print_help(sys.stderr) 
+    sys.exit()
 #
 # check params and print start settings
 #

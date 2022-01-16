@@ -51,4 +51,6 @@ def projection_in_graph(monthly_energy_df, projection_df, filename = '', ax=None
     ax.grid(ls=':')
     if filename:
         plt.savefig('{}.png'.format(filename), bbox_inches='tight')
-    return plt
+    else:
+        plt.show()
+    return

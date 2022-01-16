@@ -54,10 +54,10 @@ def filter_and_group_df(df, filter, group_by, agg='sum', add_avg='' ):
             new_filter = [item for item in group_by if item!=add_avg]
             avg_df = temp_df.groupby(new_filter).mean()
             avg_df = avg_df.reset_index()
-            avg_df[add_avg] = 'mean'
         else:
             avg_df = temp_df.groupby(add_avg).mean()
             avg_df = avg_df.reset_index()
+        avg_df[add_avg] = 'mean'
         numeric_columns = df.select_dtypes(include=numerics).columns
         temp_df = pd.concat([temp_df, avg_df], reset_index=True)
         for item in numeric_columns:
@@ -72,21 +72,23 @@ class Energy(ABC):
     main energy module. 
     Represent all common data for future classes:
     ENERGY_COLUMNS = [production_, export_, import_, direction]
-    Unit recalculation: Wh, kWhh, MWh
+    Unit recalculation: Wh, kWh, MWh
     source_name - source of data
-
+    direction - used foe panels - panel direction (West, East, South, North)
     '''
     ENERGY_COLUMNS = [
         ['production_', 0],
         ['export_',  0],
         ['import_', 0],
         ['direction', 'None']
-    ]
+    ] # basic energy columns
+    
     UNITS = {
         'Wh': 1000,
         'kWh': 1,
         'MWh': 0.001
-    }
+    } #energy units and muliply vs standard energy column (kWh)
+    
     def __init__(self, 
             source_name = "NoName", # source data name
             direction = 'None', # 
@@ -163,7 +165,7 @@ class Energy(ABC):
         stat_df = stat_df[stat_df['mean']>0]
         set_of_speedo(stat_df, self.output_dir + '{}_speedo_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date))
         if self.debug:
-            print('saved png report: ', end="")
+            print('saved png file: ', end="")
             print(self.output_dir + '{}_speedo_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date))
         if pdf:
             pdf.add_page()
@@ -198,7 +200,7 @@ class Energy(ABC):
             figsize=figsize, ax=ax
         )
         if self.debug:
-            print('saved png report: ', end="")
+            print('saved png file: ', end="")
             print(filename_g)
         if pdf:
             pdf.image(filename_g + '.png',50, None, 120, 60, type='PNG') 
@@ -213,28 +215,27 @@ class Energy(ABC):
             figsize=figsize, ax=ax
         )
         if self.debug:
-            print('saved png report: ', end="")
+            print('saved png file: ', end="")
             print(filename_g)
         if pdf:
             pdf.image(filename_g + '.png',50, None, 120, 60, type='PNG') 
         filename_g=self.output_dir + '{}_swarmplot_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)   
         group_by='day' 
-        swarmplot(
-            self.get_energy, group_by, out_columns,
-            agg=sum,
-            unit=unit,
+        self.basic_swarmplot(
+            group_by, out_columns,
+            agg='sum',
             filename=filename_g,
             figsize=figsize, 
             title="daily distribution by category"
         )
         if self.debug:
-            print('saved png report: ', end="")
+            print('saved png file: ', end="")
             print(filename_g)
         if pdf:
             pdf.image(filename_g + '.png',50, None, 120, 60, type='PNG') 
             
     def group_report_pages(self, 
-        filename='_group_report',
+        filename='group_report',
         group_by='day',
         table_include=False,
         pdf=None,
@@ -292,7 +293,7 @@ class Energy(ABC):
             table_df.to_excel(filename_g+'.xlsx')
             if self.debug:
                 print('saved xlsx report: ', end="")
-                print(self.output_dir + '{}_speedo_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date))
+                print(filename_g+'.xlsx')
         filename_g = self.output_dir + '{}_b1_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
         self.basic_barplot( 
             group_by=group_by, 
@@ -338,7 +339,11 @@ class Energy(ABC):
             pdf.cell(0, 5, 'summary energy balance / PV production (by {}).'.format(group_by), 0, 1, 'C')
             filename_g = self.output_dir + '{}_b3_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
             pdf.image(filename_g + '.png', None, None, 150, 75, type='PNG')
-            
+        if self.debug:
+                print('saved png files: ')
+                print("   " + self.output_dir + '{}_b1_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date))
+                print("   " + self.output_dir + '{}_b2_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date))
+                print("   " + self.output_dir + '{}_b3_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date))
         filename_g = self.output_dir + '{}_l1_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
         filter_day = {
             'od 8 rano': {
@@ -388,11 +393,12 @@ class Energy(ABC):
             ax=None
         )
         filename_g = self.output_dir + '{}_sw1_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
-        swarmplot(
-            self.get_energy, group_by, out_columns,
-            agg=sum,
-            unit=unit,
+        self.basic_swarmplot(
+            group_by, 
+            out_columns,
+            agg='sum',
             filename=filename_g,
+            dotsize=5
         )
         if pdf:
             pdf.add_page()
@@ -409,13 +415,18 @@ class Energy(ABC):
             pdf.cell(0, 5, 'distribution per category (by {}).'.format(group_by), 0, 1, 'C')
             filename_g = self.output_dir + '{}_sw1_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date)
             pdf.image(filename_g + '.png', None, None, 150, 75, type='PNG')
-        
+        if self.debug:
+                print('saved png files: ')
+                print("   " + self.output_dir + '{}_l1_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date))
+                print("   " + self.output_dir + '{}_l2_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date))
+                print("   " + self.output_dir + '{}_sw3_({:%Y%m%d}-{:%Y%m%d})'.format(filename, self.start_date, self.stop_date))
+                
     def basic_barplot(self, 
         group_by='day', 
         columns=['production_', 'import_', 'export_'], 
         agg="sum", 
         colors=[], 
-        filename='lineplot', 
+        filename='', 
         mean=False, 
         ax=None,
         **kwargs
@@ -423,12 +434,26 @@ class Energy(ABC):
         unit, multiply = self.unit_recalc(group_by, columns, agg)
         return barplot(self.get_energy, group_by, columns,colors, agg, unit=unit, multiply=multiply, filename=filename, mean=mean, ax=ax, **kwargs)
 
+    def basic_swarmplot(self, 
+        group_by='day', 
+        columns=['production_', 'import_', 'export_'], 
+        agg="sum", 
+        colors=[], 
+        filename='', 
+        mean=False, 
+        ax=None,
+        dotsize=2,
+        **kwargs
+    ):
+        unit, multiply = self.unit_recalc(group_by, columns, agg)
+        return swarmplot(self.get_energy, group_by, columns,colors=colors, agg=agg, unit=unit, multiply=multiply, filename=filename, mean=mean, dotsize=dotsize, ax=ax, **kwargs)
+
     def basic_lineplot(self, 
         group_by='day', 
         columns=['production_', 'import_', 'export_'], 
         colors=[], 
         fill=['production_'], 
-        filename='lineplot', 
+        filename='', 
         agg="sum", 
         filter='', 
         mean=False, 

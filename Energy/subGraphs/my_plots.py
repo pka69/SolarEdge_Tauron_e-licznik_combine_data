@@ -102,7 +102,7 @@ def barplot(
         plt.savefig('{}.png'.format(filename), bbox_inches='tight')
     else:
         plt.show()
-    return group_df
+    return
 
 def histplot(
     df, group_by, series_to_plot, 
