@@ -1,4 +1,5 @@
 # Combine data from Tauron and Solar Installation
+final project datascience/machine learning course - Software Development Academy (SDA)
 ## prepared by: *Piotr Kalista*
 
 based on solar inverter *SolarEdge*, *e-Tauron* **API** access
