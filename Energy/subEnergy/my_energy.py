@@ -8,65 +8,14 @@ import matplotlib.pyplot as plt
 
 from ..subGraphs.my_plots import barplot, lineplot, set_of_speedo, swarmplot, simple_data_preparation
 from ..subTools.my_pdf import PDF
-
+from .my_intrerfaces import LOGIN_INTERFACE
 from Energy import get_debug
 
+# LOGIN_INTERFACE = {
+#     'SolarEdge' : SolarEdge_Interface,
+#     'Tauron' : "interface",
+# }
 
-def filter_and_group_df(df, filter, group_by, agg='sum', add_avg='' ):
-    file_types = {
-        'year': [str, "'{}'".format],
-        'month': [str, "'{}'".format],
-        'week': [str, "'{}'".format],
-        'hour': [np.int64, int],
-        'direction': [str, "'{}'".format],
-        'date': [datetime, datetime.fromisoformat],
-        'production_': [np.float64, float],
-        'export_': [np.float64, float],
-        'import_': [np.float64, float],
-        'balance_': [np.float64, float],
-        'production_per_panel': [np.float64, float],
-        'self_consumption_': [np.float64, float],
-        'total_consumption_': [np.float64, float],
-        'source_': [str, "'{}'".format],   
-    }
-    numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
-
-    query = ''
-    filter_name = ''
-    if filter:
-        try:
-            for key, item in filter.items():
-                filter_name += item['logic_between'] if item.get('logic_between', '') else '' + key 
-                if file_types[item['Column']][0]!=type(item['Value']) or file_types[item['Column']][0]==str:
-                    item['Value'] = file_types[item['Column']][1](item['Value'])
-                query += (' ' + item['logic_between'] if item.get('logic_between', '') else '') + ' ' + str(item['Column']) + item['Condition'] + str(item['Value'])
-            query = query.strip().replace("  ", " ")
-            temp_df = df.query(query)
-        except ValueError as E:
-            raise ValueError('EnergyClass filter construction not valid: ' & E)
-    else:
-        temp_df = df
-    if group_by:
-        temp_df = temp_df.groupby(group_by).agg(agg)
-        temp_df = temp_df.reset_index()
-    if add_avg and (add_avg in group_by):
-        if type(group_by)==list:
-            new_filter = [item for item in group_by if item!=add_avg]
-            avg_df = temp_df.groupby(new_filter).mean()
-            avg_df = avg_df.reset_index()
-        else:
-            avg_df = temp_df.groupby(add_avg).mean()
-            avg_df = avg_df.reset_index()
-        avg_df[add_avg] = 'mean'
-        numeric_columns = df.select_dtypes(include=numerics).columns
-        temp_df = pd.concat([temp_df, avg_df], reset_index=True)
-        for item in numeric_columns:
-            filter_avg_df = avg_df[avg_df[new_filter].isin(temp_df[new_filter])]
-            # temp_df[item + '_mean'] = temp_df[item] / 
-        
-        
-    return temp_df, filter_name
-    
 class Energy(ABC):
     '''
     main energy module. 
@@ -102,10 +51,13 @@ class Energy(ABC):
             location = 'ul. Bluszczowa 4c, Kraków',
             refresh = True,
             kWh_cost = 0.65,
-            currency = "PLN"
+            currency = "PLN",
+            login_data = {},
+            start_date = None, 
+            stop_date = None,
                  ):
         self._energy_df = pd.DataFrame()
-        self.source_name = source_name
+        self.source_name = source_name      
         self.direction = direction
         self.storage_dir = storage_dir
         self.output_dir = output_dir
@@ -113,17 +65,22 @@ class Energy(ABC):
         self.export_back = export_back
         self.unit = unit
         self.day_batch = day_batch
-        self.load_dalta = False
-        self.start_date = None
-        self.stop_date = None
+        self.load_data = False  # do wykasowania
+        self.start_date = start_date
+        self.stop_date = stop_date
         self.owner = owner
         self.location = location
         self.debug = get_debug()
         self.refresh = refresh
         self.kWh_cost = kWh_cost
         self.currency = currency
+        self.login_data = login_data
+        self.interface = LOGIN_INTERFACE[self.source_name] if (self.source_name and self.source_name!="NoName") else None
+        # if type(self)==Energy:
+        self.read_data()
 
     def limit_periods(self, period, limit_min, limit_max):
+        # trim data to selected periods (min - max)
         self._energy_df = self._energy_df[(self._energy_df[period]>=limit_min) & (self._energy_df[period]<=limit_max)]
         self.set_dates()
 
@@ -571,23 +528,52 @@ class Energy(ABC):
             self.get_energy['total_consumption_'].sum() / days,
         ) + self.saving_output()
 
-    @abstractmethod
+    
     def read_data(self):
-        pass
+        start_date = self.start_date
+        try:
+            self.load_from_file()
+            start_date = self.drop_last_day()
+        except FileNotFoundError as E:
+            print("!!!!!!\n{} - no historical data".format(self.source_name))
+        if not self.refresh:
+            self.debug_import_msg()
+            return
+        with self.interface(self.login_data, start_date, self.day_batch, self.UNITS) as connection:
+            for temp_df in connection.get_dataset():
+                self.append_df(temp_df)
+        self.save_to_file()
+        self.debug_import_msg()
 
     def refresh__energy_df(self):
         pass
+    
+    def debug_import_msg(self):
+        if not self.debug: return
+        output = {col[0].strip('_').replace('_', " "): self.get_energy[col[0]].sum() for col in self.ENERGY_COLUMNS if col[0].endswith("_") and self.get_energy[col[0]].sum()>0}
+        output_str = "\n".join([f'Total energy {key:15} - {value:,.2f} {self.unit}:' for key, value in output.items()])
+        print(f'Source: {self.source_name}\n---------------------------------------\n' + output_str) 
 
     @property
     def get_energy(self):
         return self._energy_df
 
-    def set_dates(self):
+    def set_dates(self, d_min=None, d_max=None):
         #
         #   update date_min, date_max based on get_energy_
         #
-        self.start_date = self.get_energy.date.min()
-        self.stop_date = self.get_energy.date.max()
+        if d_min:
+            self.start_date = d_min
+            to_drop = self._energy_df[self._energy_df['day'] < d_min].index.tolist()
+            self._energy_df.drop(to_drop, inplace=True)
+        else:
+            self.start_date = self.get_energy.date.min()
+        if d_max:
+            self.stop_date = d_min
+            to_drop = self._energy_df[self._energy_df['day'] > d_max].index.tolist()
+            self._energy_df.drop(to_drop, inplace=True)
+        else:
+            self.stop_date = self.get_energy.date.max()
 
     def add_df(self, temp_df):
         if isinstance(temp_df, pd.DataFrame):
@@ -693,19 +679,26 @@ class PanelEnergy(Energy):
 
 class CommonEnergy(Energy):
     def __init__(self, sub_energy, **kwargs):
+        self.temp_subenergy = sub_energy
         super().__init__(**kwargs)
         if self.source_name=="NoName":
             self.source_name = 'Common EnergyCollection'
-        self.sub_energy = []
-        if not type(sub_energy)==list:
-            self.append_subenergy(sub_energy)
-        else:
-            for sub_energy_item in sub_energy:
-               self.append_subenergy(sub_energy_item) 
-        self.set_dates()
 
     def read_data(self):
-        pass
+        self.sub_energy = []
+        if not type(self.temp_subenergy)==list:
+            self.append_subenergy(self.temp_subenergy)
+            d_min, d_max = self.temp_subenergy.get_energy.day.min(), self.temp_subenergy.get_energy.day.max()
+        else:
+            d_min, d_max = self.temp_subenergy[0].get_energy.day.min(), self.temp_subenergy[0].get_energy.day.max()
+            for sub_energy_item in self.temp_subenergy:
+               self.append_subenergy(sub_energy_item) 
+               if sub_energy_item.get_energy.day.min() > d_min:
+                   d_min = sub_energy_item.get_energy.day.min()
+               if sub_energy_item.get_energy.day.max() < d_max:
+                   d_max = sub_energy_item.get_energy.day.max()    
+        self.set_dates(d_min, d_max)
+        self.temp_subenergy = None
 
     def refresh__energy_df(self):
         pass

@@ -81,11 +81,4 @@ class TauronAPI:
     def get_readings(self, start_date, end_date):
         data = self.get_raw_readings(start_date, end_date)
         data = data.get("dane", {})
-        consumed = dict(self._extract_values_with_timestamps(data.get("chart", [])))
-        produced = dict(self._extract_values_with_timestamps(data.get("OZE", [])))
-        return pd.DataFrame( 
-                sorted(
-                (timestamp, float(consumed.get(timestamp)), float(produced.get(timestamp)))
-                for timestamp in set(consumed) | set(produced)
-            ), columns=['date', 'import_', 'export_']
-        )
+        return data
